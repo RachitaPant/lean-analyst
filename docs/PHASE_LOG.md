@@ -386,3 +386,33 @@ the tool's input schema") named neither the tool nor the valid arguments; invent
 - A2: vendor `scorer.py` (mark as third-party, CC BY 4.0) rather than write our own.
 - Phase H: full 450-task runs are mandatory for every submission, which makes C1's token savings
   even more central; plan exactly two named submissions.
+
+---
+
+## Phase A2: adapter and scorer (2026-10-12)
+
+**Done**
+- Vendored the leaderboard's `question_scorer` and its upstream tests, unmodified, under
+  `third_party/dabstep_benchmark/` (CC BY 4.0, `NOTICE.md` with Space revision). Its tests now
+  run in our suite.
+- `agent/dabstep.py`:
+  - task loader (`dev`/`all`, `task_id` as str);
+  - cached context loaders that hand out copies, so agent code can't corrupt the cache;
+  - the junk index column dropped from the two CSVs;
+  - `verify_manifest()` against the A1 hashes;
+  - `format_answer` (lists, numpy, pandas → the comma-separated string the scorer expects);
+  - `score`/`score_tasks`;
+  - `write_submission`, which refuses partial or unknown task sets, plus `validate_submission`,
+    which mirrors the Space's checks.
+- `tests/test_dabstep.py`: all 10 dev answers score 1.0 against themselves; scorer cases;
+  submission round-trip. Data-backed tests skip when `data/dabstep/` is absent, as in CI.
+  345 tests pass (76 pass + 9 skip without data).
+- `pandas`/`numpy` added to `requirements.txt`.
+
+**Findings**
+- Two dev answers expose scorer leniencies, now pinned as tests:
+  - the minus sign is ignored (`0.948103` matches `-0.948…`);
+  - `E:13.57` vs `F:13.57` is compared by number only.
+- Multiple-choice letters do matter: `A. BE` ≠ `B. BE`.
+- Our local evals use the same scorer, so local and leaderboard scores agree. C2's formatter
+  should still aim for the exact intended answer.

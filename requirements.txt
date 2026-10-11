@@ -14,4 +14,8 @@ jsonschema>=4.22
 # Redis (rate limits, budget, plan cache)
 upstash-redis>=1.1
 
-mpmath>=1.3  # BFCL MathAPI
+mpmath>=1.3  # BFCL MathAPI (removed with bfcl_adapter at the end of Phase A)
+
+# DABstep data analysis (adapter + the agent's restricted executor)
+pandas>=2.2
+numpy>=1.26

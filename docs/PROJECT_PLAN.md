@@ -31,8 +31,8 @@ Progress tracking: tick boxes as you go.
 - [x] Read `manual.md` and `payments-readme.md` end to end; write `docs/DOMAIN_NOTES.md` (fee-rule logic, fraud/fines, ACI, capture delay, MCC) in your own words
 
 **A2. Adapter and scorer**
-- [ ] `agent/dabstep.py`: task loader (dev/all), context loader (pandas; cache parsed frames), answer scorer (numeric tolerance, normalized + fuzzy strings, lists), submission writer
-- [ ] Scorer tests: all 10 dev answers score 1.0 against themselves; known near-misses score as specified
+- [x] `agent/dabstep.py`: task loader (dev/all), context loader (pandas; cache parsed frames), answer scorer (numeric tolerance, normalized + fuzzy strings, lists), submission writer
+- [x] Scorer tests: all 10 dev answers score 1.0 against themselves; known near-misses score as specified
 
 **A3. Agent swap**
 - [ ] Baseline agent = stock smolagents `CodeAgent` with the restricted `LocalPythonExecutor`. Authorized imports: `pandas`, `numpy`, `json`, `math`, `datetime`, `re`. Data files read-only, by path; full manual in the prompt (the DABstep-style baseline)
