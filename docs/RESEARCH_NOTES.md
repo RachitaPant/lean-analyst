@@ -12,13 +12,53 @@ Facts verified on **2026-10-04** (Lean Agents selection) and **2026-10-12** (Lea
 | Context files | `payments.csv` 23,581,339 B; `fees.json` 531,118 B; `manual.md` 22,127 B (~5.5K tokens at ~4 chars/token); `merchant_category_codes.csv` 26,611 B; `merchant_data.json` 6,857 B; `payments-readme.md` 1,719 B; `acquirer_countries.csv` 194 B | HF API tree listing |
 | `payments.csv` columns | psp_reference, merchant, card_scheme, year, hour_of_day, minute_of_hour, day_of_year, is_credit, eur_amount, ip_country, issuing_country, device_type, ip_address, email_address, card_number, shopper_interaction, card_bin, has_fraudulent_dispute, is_refused_by_adyen, aci, acquirer_country | file header |
 | Scoring | Binary per task. Numbers compared with adaptive tolerance; strings normalized + fuzzy-matched against a threshold; lists element-wise | HF blog |
-| Submission | Answers submitted on the leaderboard Space (https://huggingface.co/spaces/adyen/DABstep) and graded instantly; baseline code (`run.py`) lives in the Space. **Unverified:** whether all 450 are required, submission limits, scorer license | HF blog; Space page didn't render details |
+| Submission | Answers submitted on the leaderboard Space (https://huggingface.co/spaces/adyen/DABstep) and graded instantly; baseline code (`run.py`) lives in the Space. See "Leaderboard Space" below (verified A1) | Space source |
 | Baselines | Hard set: best agents below 20% (o3-mini 16%, Claude Sonnet 12%, DeepSeek V3 ~6%); the paper reports 14.55% best on hard. Easy set: Llama 70B zero-shot can exceed 90% (per blog) | HF blog, paper |
 | ⚠ Leakage | The dataset also publishes `data/submissions/*.jsonl` (2,268 files) and `data/task_scores/*.jsonl`. Hidden answers could be reconstructed from them. **Do not use** (project rule) | HF API listing |
 
 **Example dev tasks:**
 - "Which issuing country has the highest number of transactions?" → `NL` (easy)
 - "Is Martinis_Fine_Steakhouse in danger of getting a high-fraud rate fine?" → `Not Applicable` (easy)
+
+### Pinned download (Phase A1, 2026-10-12)
+
+Dataset `adyen/DABstep` at revision **`cebda164a72ed62e210f8e576049384830141d57`**, downloaded to
+`data/dabstep/` (gitignored); `data/dabstep/MANIFEST.json` holds the full list. Only context files,
+`tasks/*.jsonl`, `LICENSE` and `README.md` were downloaded, never `submissions/` or `task_scores/`.
+
+| File | SHA-256 |
+|---|---|
+| `context/payments.csv` | `5fbb26210a45427d7a6560cfab3a362a08e4067f27cd03695f211a51c47ffc25` |
+| `context/fees.json` | `9a833666ae9be5a8e756dd1fe076c72e7c502d64161315ffa8fee9e5bf2599dc` |
+| `context/manual.md` | `bb7f4ca6fdc759af1f480702b3a3b12e17e9293b0d38a1dbfbbc8ffc1e572d2c` |
+| `context/merchant_data.json` | `f158e834de27ee8407e99d9c32da690357981d2770958fd302a9bb79ced83581` |
+| `context/merchant_category_codes.csv` | `83247d79f5ddcdd180e02f184b644f4912731942a2fc58d91f2a06b911d04b41` |
+| `context/payments-readme.md` | `8754b92d0b3127856ff72266ea482995d2a1f6a34d0a12732f7c26f527f2c4a5` |
+| `context/acquirer_countries.csv` | `6744cf1962e4b5086342821e627f4557c32f06c3c58e8b0ff3b449dcc634f37f` |
+| `tasks/all.jsonl` | `d776385abe09ff89ed3263bd47c90fa0f060680c0d2ef04a83485fa4b6f2512c` |
+| `tasks/dev.jsonl` | `c1da755a6fe9cb538fc84719f51e1db0bff0190a1d6905767ac18c755e66a07b` |
+
+Confirmed on download: `all.jsonl` 450 rows, every `answer` empty; `dev.jsonl` 10 rows, all answered.
+
+### Leaderboard Space (read 2026-10-12, Space revision `d4431c2e`)
+
+Source: `app.py`, `dabstep_benchmark/{leaderboard,utils,content}.py`, `evaluation/scorer.py`, `baseline/`.
+
+| Question | Answer |
+|---|---|
+| All 450 answers required? | **Yes.** `evaluate()` loops over every hidden task and raises `KeyError` ("Task ID … not found") if any is missing, so a partial file is rejected |
+| Format | JSONL with mandatory `task_id`, `agent_answer`; optional `reasoning_trace`. Any other column → rejected. All values must be strings, no NaN |
+| HF login needed? | **Yes.** The submit handler takes a `gr.OAuthProfile` (Gradio `LoginButton`); also asks for agent name, organisation, email, model family, optional repo URL |
+| Submission limits | No rate limit in code, but **each `organisation-agent_name` pair can be submitted only once**. The file and per-task scores are uploaded to the **public** dataset |
+| Validation | Closed: the validated board takes no new entries ("DABStep-v2 launching in the coming weeks"). New submissions go to the **Unvalidated** board |
+| Scorer license | Space is **CC BY 4.0** (README front matter + LICENSE). Vendoring `scorer.py` is allowed with attribution |
+| Scorer rules | Lowercase + strip. If either side is a comma-thousands number or plain decimal → numeric compare. Else if `,` or `;` present → list compare (brackets stripped, sorted, item-wise recursive). Else numeric if both contain a number (first number extracted). Else strings: equal after stripping non-word chars, or single-word subset, or `SequenceMatcher` ratio > 0.95. Numeric: equal, or both < 1 → `isclose(1e-4)`, else round both to the fewer decimal places, else `isclose(rel 1e-4)` |
+| Baseline | smolagents **1.3.0** `CodeAgent` via LiteLLM, `max_steps=10`, authorized imports `numpy, pandas, json, csv, glob, markdown, os`; the agent explores the context directory itself (manual not pre-loaded); "Not Applicable" when no answer |
+
+Scorer quirks worth knowing (they affect C2 answer formatting): a scalar answer containing a comma is
+treated as a list; the "first number" rule means `"12 transactions"` matches `"12"`; rounding both to the
+fewer decimal places means a coarser answer can still match (truth `3.14159` vs `3.14` → equal at 2 dp),
+but a wrongly rounded one fails (`3.15`).
 
 ### Other business-analytics benchmarks considered
 

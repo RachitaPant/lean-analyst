@@ -352,3 +352,37 @@ sample, which waits for the baseline pilot.
 `json`; unknown argument `cityA` repeated 7× after smolagents' message ("Argument cityA is not in
 the tool's input schema") named neither the tool nor the valid arguments; invented wrappers
 `arguments`/`args` ×3; one `output_parse_failed`.
+
+---
+
+## Phase A1: verify before building (2026-10-12)
+
+**Done**
+- Fresh `.venv` (Python 3.11) for this repo. DABstep downloaded to `data/dabstep/` at dataset
+  revision `cebda164`, with SHA-256 for every file in `data/dabstep/MANIFEST.json` and
+  RESEARCH_NOTES. Only context files and task files were fetched; the published
+  `submissions/` and `task_scores/` were deliberately left out (leakage rule).
+- Read the leaderboard Space source (revision `d4431c2e`): submission handler, `evaluate()`,
+  `scorer.py`, baseline `run.py`/`prompts.py`/`utils.py`. Facts in RESEARCH_NOTES.
+- Read `manual.md` and `payments-readme.md` in full and checked them against the data;
+  wrote [DOMAIN_NOTES.md](DOMAIN_NOTES.md).
+
+**Findings**
+- **All 450 answers are required** per submission, an **HF login** is needed, and each
+  `organisation-agent_name` can be submitted **once**; files and per-task scores become public.
+  The validated board is closed (DABstep-v2 announced); new entries land on the unvalidated board.
+- **Scorer is CC BY 4.0**, so A2 can vendor it with attribution instead of reimplementing it.
+  It is lenient in specific ways (coarser rounding matches, first-number extraction, any comma
+  makes a list), which C2's answer formatter should exploit and avoid tripping over.
+- **The docs contradict the data** in several places: card schemes and acquirer countries in
+  the readme are wrong; list fields in `fees.json` use `[]` for "all" (manual says `null`);
+  capture delay is days in merchant data but buckets in rules; the manual's MCC examples are
+  wrong. These become C1 field cards and C2 checks.
+- `payments.csv` covers only 5 of 30 merchants, all in 2023.
+- Official baseline: smolagents 1.3.0 with `os`, `glob`, `csv`, `markdown` also allowed. Our A3
+  allow-list stays stricter (no `os`/`glob`); we give file paths instead.
+
+**Direction changes**
+- A2: vendor `scorer.py` (mark as third-party, CC BY 4.0) rather than write our own.
+- Phase H: full 450-task runs are mandatory for every submission, which makes C1's token savings
+  even more central; plan exactly two named submissions.

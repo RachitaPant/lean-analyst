@@ -23,12 +23,12 @@ Progress tracking: tick boxes as you go.
 ## Phase A: Pivot to DABstep (Weeks 1–3)
 
 **A1. Verify before building**
-- [ ] Download the DABstep context files + `tasks/dev.jsonl` + `tasks/all.jsonl` to `data/dabstep/`; record file hashes and the dataset revision
-- [ ] Read the leaderboard Space's files (`run.py` baseline, scorer, submission format). Record:
+- [x] Download the DABstep context files + `tasks/dev.jsonl` + `tasks/all.jsonl` to `data/dabstep/`; record file hashes and the dataset revision
+- [x] Read the leaderboard Space's files (`run.py` baseline, scorer, submission format). Record:
   - whether all 450 answers are required per submission
   - submission limits, and whether an HF login is needed
   - the scorer's license (vendor it only if the license allows; otherwise reimplement from the described rules)
-- [ ] Read `manual.md` and `payments-readme.md` end to end; write `docs/DOMAIN_NOTES.md` (fee-rule logic, fraud/fines, ACI, capture delay, MCC) in your own words
+- [x] Read `manual.md` and `payments-readme.md` end to end; write `docs/DOMAIN_NOTES.md` (fee-rule logic, fraud/fines, ACI, capture delay, MCC) in your own words
 
 **A2. Adapter and scorer**
 - [ ] `agent/dabstep.py`: task loader (dev/all), context loader (pandas; cache parsed frames), answer scorer (numeric tolerance, normalized + fuzzy strings, lists), submission writer
@@ -156,7 +156,7 @@ Progress tracking: tick boxes as you go.
 |---|---|
 | Only 10 labeled dev tasks | Build our own ~40-task labeled set (Phase B); it doubles as domain learning |
 | Full 450-task submissions are quota-heavy | C1 first; overnight runs across Groq models + Gemini; only 2 planned submissions |
-| Leaderboard rules unknown (all tasks required? limits?) | Verify in A1 before planning Phase H |
+| Leaderboard rules (verified A1): all 450 required, HF login, one submission per org-agent name, results public | Plan Phase H around unique agent names; only finished configs |
 | LLM-written code in a public demo | Restricted executor, allow-listed imports, read-only data, hardening tests (A3), step caps |
 | Vercel bundle or cold start with pandas + 23.6 MB CSV | Measure in A4; convert to a compact format at build time if needed |
 | Hard tasks remain hard (low absolute accuracy) | Report relative gains with CIs and per-category analysis; easy-set accuracy and token savings are also results |
