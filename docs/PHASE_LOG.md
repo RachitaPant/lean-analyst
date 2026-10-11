@@ -12,10 +12,58 @@ Numbers here come only from files in `eval/results/` or from commands run during
 
 ---
 
-## Project flow at a glance
+## Lean Analyst: the fork (2026-10-12)
+
+**What happened:** the user wanted a second, separate project, a generative-AI project in
+**business analytics**. Rather than start from zero, Lean Agents was cloned (with full git
+history, at commit `85482e2`) into `D:\personal_projects\lean-analyst` and retargeted to
+**DABstep** (Adyen + Hugging Face). Lean Agents continues unchanged in its own repo.
+
+**Why DABstep** (verified 2026-10-12, see RESEARCH_NOTES):
+- 450 real payments-analytics tasks (72 easy, 378 hard), with answers hidden and scored by a
+  public leaderboard; 10 dev tasks with answers; CC BY 4.0.
+- Structured data (`payments.csv` 23.6 MB, `fees.json`, `merchant_data.json`) plus a 22 KB
+  business manual, so the agent must read rules *and* write analysis code.
+- Hard for current agents: best reported hard-set accuracy is below 20%.
+- Alternatives considered: InsightBench (LLM-judge scoring, fuzzier) and BIRD Mini-Dev
+  (crowded; a VLDB 2026 analysis found annotation errors in ~half of its questions).
+
+**What carries over from Lean Agents:** `agent/runner.py` (streaming trace events, outcome
+classes), the eval harness (`run.py`, `analyze.py`, `configs.py`, `make_tasks.py`),
+`server/` (FastAPI + Upstash guard), `web/` (trace UI), the BM25 module, provider-error
+recovery in `repair.py`, and every finding below about Groq's limits.
+
+**What changes:**
+- `ToolCallingAgent` over BFCL APIs → `CodeAgent` with a restricted pandas executor over
+  DABstep files.
+- C1 "tool retrieval" → **context retrieval** (manual sections, column/field cards).
+- C2 "tool-call validation" → **code validation + runtime repair + answer formatting**.
+- C3 plan caching → **analysis-template caching**.
+- The BFCL adapter and the vendored `third_party/bfcl_eval/` are removed at the end of Phase A.
+
+**Evaluation design decision:** only 10 labeled dev tasks exist, and the HF dataset publishes
+other teams' submissions + per-task scores (hidden answers could be reconstructed from them).
+That is ruled out as leakage. Instead: a self-labeled local set of ~40 tasks (solved by hand in
+pandas, method recorded) for all comparisons, plus a small number of planned leaderboard
+submissions.
+
+**First constraint spotted:** `manual.md` alone is ~5.5K tokens, against Groq's 8K
+tokens/minute, so a "full manual every step" baseline will hit the same `request_too_large` wall
+that Lean Agents hit. C1 again comes first.
+
+**Open checks (Phase A1):** leaderboard submission rules (all 450 required? limits? login?),
+the scorer's license, and Vercel bundle size / cold start with pandas + data.
+
+Everything below this line is **inherited Lean Agents history** (BFCL), kept because its
+findings about Groq limits, smolagents behaviour and the harness still apply.
+
+---
+
+## Project flow at a glance (inherited from Lean Agents)
 
 How the direction has moved so far, newest last:
 
+0. **Forked into Lean Analyst** (2026-10-12): business analytics on DABstep (see above).
 1. **Chose Lean Agents** (2026-10-04): smolagents + BFCL multi-turn, with five contributions
    (C1–C5), ₹0 infrastructure, a live demo from Week 4.
 2. **Dropped Cerebras** (Phase 0): it needs a card. The fallback chain became Groq models →

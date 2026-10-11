@@ -1,6 +1,34 @@
 # Research Notes
 
-Facts verified on **2026-10-04** during project selection. Free tiers change often, so re-check each one before relying on it.
+Facts verified on **2026-10-04** (Lean Agents selection) and **2026-10-12** (Lean Analyst / DABstep). Free tiers change often, so re-check each one before relying on it.
+
+## DABstep (verified 2026-10-12)
+
+| Item | Fact | Source |
+|---|---|---|
+| What | Data Agent Benchmark for Multi-step Reasoning, by Adyen + Hugging Face; tasks derived from Adyen's operational analytics | [paper](https://arxiv.org/abs/2506.23719), [HF blog](https://huggingface.co/blog/dabstep), [Adyen](https://www.adyen.com/knowledge-hub/data-agent-benchmark-for-multi-step-reasoning-dabstep) |
+| License | Dataset **CC BY 4.0** (HF dataset card tag) | https://huggingface.co/datasets/adyen/DABstep |
+| Tasks | `data/tasks/all.jsonl`: **450** tasks (72 easy, 378 hard), **answers empty**. `data/tasks/dev.jsonl`: **10** tasks (3 easy, 7 hard) with answers. Fields: `task_id`, `question`, `guidelines`, `level`, `answer` | dataset files (HF API, last modified 2026-10-11) |
+| Context files | `payments.csv` 23,581,339 B; `fees.json` 531,118 B; `manual.md` 22,127 B (~5.5K tokens at ~4 chars/token); `merchant_category_codes.csv` 26,611 B; `merchant_data.json` 6,857 B; `payments-readme.md` 1,719 B; `acquirer_countries.csv` 194 B | HF API tree listing |
+| `payments.csv` columns | psp_reference, merchant, card_scheme, year, hour_of_day, minute_of_hour, day_of_year, is_credit, eur_amount, ip_country, issuing_country, device_type, ip_address, email_address, card_number, shopper_interaction, card_bin, has_fraudulent_dispute, is_refused_by_adyen, aci, acquirer_country | file header |
+| Scoring | Binary per task. Numbers compared with adaptive tolerance; strings normalized + fuzzy-matched against a threshold; lists element-wise | HF blog |
+| Submission | Answers submitted on the leaderboard Space (https://huggingface.co/spaces/adyen/DABstep) and graded instantly; baseline code (`run.py`) lives in the Space. **Unverified:** whether all 450 are required, submission limits, scorer license | HF blog; Space page didn't render details |
+| Baselines | Hard set: best agents below 20% (o3-mini 16%, Claude Sonnet 12%, DeepSeek V3 ~6%); the paper reports 14.55% best on hard. Easy set: Llama 70B zero-shot can exceed 90% (per blog) | HF blog, paper |
+| ⚠ Leakage | The dataset also publishes `data/submissions/*.jsonl` (2,268 files) and `data/task_scores/*.jsonl`. Hidden answers could be reconstructed from them. **Do not use** (project rule) | HF API listing |
+
+**Example dev tasks:**
+- "Which issuing country has the highest number of transactions?" → `NL` (easy)
+- "Is Martinis_Fine_Steakhouse in danger of getting a high-fraud rate fine?" → `Not Applicable` (easy)
+
+### Other business-analytics benchmarks considered
+
+- **InsightBench** (ServiceNow; code MIT, data CC BY 4.0): end-to-end insight generation; scored by an LLM judge. https://github.com/ServiceNow/insight-bench
+- **BIRD Mini-Dev** (text-to-SQL): 500 questions; a VLDB 2026 analysis found annotation errors in 52.8% of Mini-Dev problems. https://www.vldb.org/cidrdb/papers/2026/p5-jin.pdf
+- **"Agent Bain vs. Agent McKinsey"** (business-domain text-to-SQL, 2025): https://arxiv.org/pdf/2510.07309 (license/status not verified)
+
+---
+
+## Inherited from Lean Agents (2026-10-04)
 
 ## Foundations
 

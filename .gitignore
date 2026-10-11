@@ -29,3 +29,6 @@ eval/results/raw/
 Thumbs.db
 .vscode/
 .idea/
+
+# DABstep data (download in Phase A; payments.csv is 23.6 MB)
+data/dabstep/

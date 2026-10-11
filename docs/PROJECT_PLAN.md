@@ -1,153 +1,137 @@
-# Lean Agents: Phase-Wise Project Plan
+# Lean Analyst: Phase-Wise Project Plan
+
+A GenAI data-analyst agent for business analytics, evaluated on **DABstep** (Adyen + Hugging Face).
+
+Forked from Lean Agents on 2026-10-12. Its Phases 0–2 (setup, foundations, deployed walking skeleton) and its C1/C2 work on BFCL are inherited; see the history in [PHASE_LOG.md](PHASE_LOG.md). This plan starts with the pivot.
 
 **Assumptions:**
-- ~10–12 hours/week alongside college.
-- Start mid-October 2026; finish by March 2027.
-- A 2-week exam buffer is included; move it to match your exam calendar.
+- ~10–12 hours/week alongside college. Lean Agents continues in parallel, so expect ~5–6 h/week here.
+- Target finish: April 2027.
+- An exam buffer is included; move it to match your calendar.
 
 **Principles:**
-1. **Deploy early.** The live link exists from Week 4, and every improvement ships to it.
-2. **C1 first.** Token reduction stretches the free daily quota, which speeds up every later experiment.
-3. **Freeze the evaluation task sample after Phase 3.** Never tune on it.
-4. **Never write a number in docs or the resume that wasn't measured.**
+1. **Reuse, don't rebuild.** The runner, eval harness, guard, server, web trace and provider-error handling carry over. Only the task source, the agent type and the C1/C2 internals change.
+2. **Stay live.** The demo is redeployed on DABstep at the end of Phase A, and every improvement ships to it.
+3. **C1 first.** The manual alone is ~5.5K tokens against Groq's 8K tokens/minute, so token budget is the gate for everything else.
+4. **Honest evaluation.** Use our own labels, never reconstructed answers (see `CLAUDE.md`). Freeze the local set. Make only a few, planned leaderboard submissions.
+5. **Never write a number that wasn't measured.**
 
 Progress tracking: tick boxes as you go.
 
 ---
 
-## Phase 0: Setup (Week 1)
+## Phase A: Pivot to DABstep (Weeks 1–3)
 
-- [ ] Create accounts (no card needed): GitHub, Vercel, Groq, Google AI Studio (Gemini key), Upstash. GitHub Models works with the GitHub account. **Not Cerebras:** it now requires a card.
-- [x] Python 3.12 venv (avoid 3.13 for ML libs) + Node.js LTS (using 3.11.0 in `.venv`, since 3.12 isn't installed; Node 22.15)
-- [x] Repo skeleton: `agent/`, `api/`, `web/`, `eval/`, `docs/` (done)
-- [x] `requirements.txt`, `.env` from `.env.example`
-- [x] Set `OLLAMA_MODELS=D:\ollama` and `HF_HOME=D:\hf` (C: has little free space)
-- [x] GitHub Actions workflow running `pytest` (green on first push, 2026-10-04)
-- [x] `scripts/hello_groq.py`: one chat completion + one tool call against Groq (verified 2026-10-04 with `openai/gpt-oss-120b`)
+**A1. Verify before building**
+- [ ] Download the DABstep context files + `tasks/dev.jsonl` + `tasks/all.jsonl` to `data/dabstep/`; record file hashes and the dataset revision
+- [ ] Read the leaderboard Space's files (`run.py` baseline, scorer, submission format). Record:
+  - whether all 450 answers are required per submission
+  - submission limits, and whether an HF login is needed
+  - the scorer's license (vendor it only if the license allows; otherwise reimplement from the described rules)
+- [ ] Read `manual.md` and `payments-readme.md` end to end; write `docs/DOMAIN_NOTES.md` (fee-rule logic, fraud/fines, ACI, capture delay, MCC) in your own words
 
-**Exit:** Groq call works from Python; CI is green.
+**A2. Adapter and scorer**
+- [ ] `agent/dabstep.py`: task loader (dev/all), context loader (pandas; cache parsed frames), answer scorer (numeric tolerance, normalized + fuzzy strings, lists), submission writer
+- [ ] Scorer tests: all 10 dev answers score 1.0 against themselves; known near-misses score as specified
 
-## Phase 1: Understand the foundations (Weeks 2–3)
+**A3. Agent swap**
+- [ ] Baseline agent = stock smolagents `CodeAgent` with the restricted `LocalPythonExecutor`. Authorized imports: `pandas`, `numpy`, `json`, `math`, `datetime`, `re`. Data files read-only, by path; full manual in the prompt (the DABstep-style baseline)
+- [ ] Executor hardening tests: no network, no file writes, no imports outside the allow-list, no reads outside `data/dabstep/`; time and memory caps per step
+- [ ] `agent/runner.py`: emit `code` and `execution_result` trace events (keep the existing event schema; add fields, don't break the UI)
+- [ ] Port `eval/configs.py` and `eval/run.py` to DABstep tasks (resumable, quota-aware; outcome categories gain `code_error`, `format_fail`, `wrong_answer`)
 
-- [x] Read smolagents `src/smolagents/agents.py` (<1,000 LOC), `ToolCallingAgent`, the tools module, the model wrappers
-- [x] Write `docs/ARCHITECTURE_NOTES.md`: how the smolagents loop works and where the hooks for C1–C5 go
-- [x] Read BFCL: the multi-turn data format, `bfcl_eval/eval_checker/multi_turn_eval/func_source_code/*.py`, and how state-based checking works
-- [x] Build `eval/bfcl_adapter.py`: wrap BFCL simulated API methods as smolagents tools (file system, trading bot, messaging first). Covers all 8 multi-turn classes; ground-truth replay of all 200 base tasks passes the official checker (`tests/test_bfcl_adapter.py`)
-- [x] Run 3 BFCL multi-turn tasks end to end with the stock agent; score them with BFCL's checker (`eval/run_smoke.py`; 1/3 pass in the recorded run; see ARCHITECTURE_NOTES §3)
+**A4. Demo redeploy**
+- [ ] Presets = 4–6 easy and medium dev-style business questions (from `dev.jsonl` + clearly marked custom questions)
+- [ ] Web: render code blocks, execution output, final answer vs expected (dev only), and a simple chart when the agent returns a small table
+- [ ] Bundle the data with the API service (check the 500 MB limit and cold-start time); a new Vercel project + new Upstash DB (don't share quota counters with Lean Agents)
 
-**Exit:** a stock agent solves a BFCL task and the official checker scores it.
+**A5. Clean up**
+- [ ] Remove `agent/bfcl_adapter.py`, `third_party/bfcl_eval/`, BFCL tests and BFCL-specific retrieval data (history stays in git)
 
-## Phase 2: Walking skeleton deployed (Week 4)
+**Exit:** the stock CodeAgent solves at least one dev task end to end and is scored by our scorer; the demo is live on DABstep.
 
-- [x] `api/run.py`: Vercel Python function that runs one task and streams each step (tool, args, result, tokens). Built as FastAPI `server/app.py` (`POST /api/run`, NDJSON) on the shared `agent/runner.py`
-- [x] `web/`: Next.js page with a preset-task picker and a live step-by-step trace viewer
-- [x] Upstash Redis: per-visitor rate limit + global daily token budget (`server/guard.py`, plus a one-run-at-a-time lock; verified against the free Upstash DB, 2026-10-05)
-- [x] Deploy to Vercel; add the Groq key as an env var in the Vercel dashboard (never commit keys). Live: https://lean-agents-brown.vercel.app (2026-10-05)
+## Phase B: Baseline + local labeled set (Weeks 4–6)
 
-**Exit:** a public URL where anyone can click "Run" and watch the agent. Add it to GitHub and LinkedIn.
+- [ ] **Pilot:** baseline on the 10 dev tasks → measure tokens per task, calls, failure categories, `request_too_large` rate
+- [ ] **Local labeled set:** pick ~40 tasks from `all.jsonl`, stratified by level and question type, with a fixed seed. Solve each yourself in pandas in `eval/labels/` notebooks or scripts, recording the method and every manual rule used; a second pass re-checks 25%.
+  - This is how you learn the domain, and it is interview material.
+  - Never use public submissions or task scores.
+- [ ] Freeze `eval/tasks/frozen_local.jsonl` (excludes dev tasks and demo presets)
+- [ ] Run the baseline on the frozen set; `eval/analyze.py` gives accuracy with 95% bootstrap CIs, by level, plus tokens, calls and latency
+- [ ] Noise check: the baseline twice on ~5 tasks
 
-## Phase 3: Baseline + evaluation harness (Weeks 5–6)
-
-- [x] `eval/run.py --config <name> --tasks <file>`. Per task it logs:
-  - success
-  - prompt/completion tokens
-  - LLM calls
-  - latency
-  - invalid tool calls
-  - provider used
-  - **outcome category**: `pass` / `checker_fail` / `provider_reject` (HTTP 400, e.g. unknown tool, unparseable output) / `request_too_large` (HTTP 413) / `provider_unavailable` (5xx, e.g. Groq 503 over capacity) / `step_cap`
-- [x] Quota-aware and resumable: pause at the daily limit, resume the next day (append-only JSONL). A 429/TPD mid-task is a *retry*, never a model failure (`--wait-on-quota` sleeps through it; 5xx retried up to 3×)
-- [x] Exclude the Phase 1 dev smoke tasks (`multi_turn_base_3`, `_17`, `_100`) and the demo presets (`_50`, `_100`, `_132`, `_182`, see `server/app.py`) from the frozen sample
-- [ ] Reduce run-to-run noise: fix temperature (and seed, if Groq honours it) (done: temperature 0.001 = BFCL default, seed 42, both logged per record; Groq's seed is best-effort); run the baseline **twice** on ~5 pilot tasks to measure the noise floor (Phase 1: `multi_turn_base_100` passed once, failed once)
-- [ ] **Pilot on 10 tasks** → measure real tokens per task (Phase 1 saw 4K–137K) → choose the sample size (target 40–60) within the daily quota budget, and fix the seed
-- [ ] Freeze `eval/tasks/frozen_sample.jsonl`
-- [ ] Run **Baseline** on the frozen sample
-- [x] `eval/analyze.py`: success rate with 95% bootstrap CI, token/latency distributions, tables + plots
-
-**Exit:** a publishable baseline table.
+**Exit:** a publishable baseline table on the local set.
 
 ## ⏸ Exam buffer (2 weeks)
 
-- [ ] Light work: read the papers in `RESEARCH_NOTES.md`; let overnight eval runs continue
+## Phase C: C1, context retrieval + token budget (Weeks 7–8)
 
-## Phase 4: C1, tool retrieval + token budget (Weeks 7–8; **moved before the Phase 3 baseline run**, 2026-10-06)
+- [ ] Split `manual.md` into sections; build cards for each column (`payments-readme.md`) and each fee-rule field
+- [ ] BM25 retrieval (inherited `agent/retrieval/bm25.py`) of the top-k sections + cards per step, with a core prior (always-needed definitions), learned on dev only
+- [ ] History trimming under a per-request token budget (port from `lean_agent.py`)
+- [ ] Offline check (zero LLM calls): does retrieval cover the manual sections your own labeled solutions used? (coverage@k)
+- [ ] Ablations: k ∈ {2, 4, 8}; full manual vs retrieved; with vs without column cards
+- [ ] Run **+C1** on the frozen local set; ship a "tokens saved" counter to the demo
 
-Reordered because the stock agent fits only 2–3 tasks/day in Groq's free quota (Phase 3 pilot). C1 is developed and tuned on `eval/tasks/dev.jsonl` (30 tasks, disjoint from pilot and the future frozen sample); the baseline pilot continues in between.
+**Metrics:** prompt tokens per call and per task, accuracy, tasks per day on a fixed quota, `request_too_large` rate.
 
-Phase 1 found the stock prompt sends every tool description twice (system prompt + native `tools`) and replays the full history each step. On a 29-tool task that passed Groq's 8K-tokens-per-request ceiling (HTTP 413). See `docs/ARCHITECTURE_NOTES.md`.
+## Phase D: C2, code validation + repair + answer format (Weeks 9–10)
 
-- [x] Precompute tool descriptions + embeddings at build time (`agent/retrieval/`). Per the no-local-models rule, start with BM25 and use a hosted embedding API if embeddings are needed. Done: dependency-free BM25 over name + description + params + **response fields**, plus per-API **core tools** learned from dev (`agent/retrieval/core_tools.json`, `eval/build_core_tools.py`). Embeddings deferred (BM25 + core reaches 90% turn coverage on dev)
-- [ ] Retrievers: BM25, embedding, hybrid; top-k tools per step (BM25 done, per step with turn text + last observation; embedding/hybrid only if live misses justify it)
-- [x] Safety net: if the agent names an unseen tool, re-retrieve with a larger k (a real-but-unoffered tool rejected by Groq is added and the step retried)
-- [x] Stop the double listing: tool docs either in the system prompt or in native `tools`, not both (+ API boilerplate stated once)
-- [x] History trimming: keep the task + recent steps verbatim, compress older observations, and keep each request under the provider's per-request limit
-- [ ] Ablation: k ∈ {3, 5, 10} × {BM25, embedding, hybrid} (configs `c1_k3`, `c1`, `c1_k10`, `c1_listing`, `c1_retrieval`; offline recall table in the phase log)
-- [ ] Run **+C1**; compare with the Baseline
-- [ ] Ship to the live demo with a "tokens saved" counter
+- [ ] Pre-execution checks on generated code: referenced columns exist, file paths are allowed, imports are allow-listed
+- [ ] Runtime-error repair: `KeyError` → list close valid columns; empty results → hint the filter values that exist (e.g. merchant names); type and units hints; capped retries
+- [ ] Answer-format validator driven by each task's `guidelines` (country code only, `X. Y` choice form, rounding, lists, "Not Applicable")
+- [ ] Reuse provider-error recovery from `agent/repair.py` (HTTP 400 → feedback instead of fatal)
+- [ ] Failure taxonomy per task: code_error / wrong_column / empty_result / format_fail / wrong_answer
+- [ ] Run **+C1+C2**
 
-**Metrics:** tokens per step and per task, success, tasks completed per day on a fixed quota, `request_too_large` rate.
+**Metrics:** code-error rate, repairs, format failures, accuracy.
 
-## Phase 5: C2, validate and repair (Weeks 9–10)
+## Phase E: C5, quota-aware provider router (Week 11)
 
-- [x] Validate every tool call: Pydantic/jsonschema checks on types, required fields, enums (`agent/repair.py`: own checks incl. BFCL's `[Enum]: [...]` in descriptions; messages name the tool and its signature)
-- [x] Targeted error feedback (e.g. "`amount` must be a number; got 'ten'"), with a capped number of retries
-- [x] Recover from provider-side rejections instead of dying: catch HTTP 400 `tool_use_failed` / `output_parse_failed` (currently fatal in smolagents), read `failed_generation`, feed back a targeted message (e.g. "tool `answer` doesn't exist; use `final_answer`")
-- [x] Repairs seen in Phase 1: unwrap invented `{"arguments": {}}` / `{"args": {}}` on zero-argument tools
-- [x] Side-effect-aware feedback: tell the model which state-changing calls already succeeded so a retry doesn't repeat them (Phase 1: `send_message` sent 4×)
-- [x] Failure taxonomy: malformed JSON / wrong tool / wrong argument / wrong order (logged per task as `repairs`: wrong_tool, wrong_argument, malformed_output, wrapper_unwrapped; "wrong order" shows up as tool-returned errors, not yet categorised)
-- [ ] Run **+C1+C2** (configs `c2`, `c1_c2`; dev check on gpt-oss-20b running)
+- [ ] Per-model RPM/TPM/RPD/TPD tracking in Redis
+- [ ] Route Groq `gpt-oss-120b` → `qwen3.8-27b` → `gpt-oss-20b` → Gemini (AI Studio) → GitHub Models; fail over on 429/5xx/timeouts with backoff
+- [ ] Load test with simulated concurrent demo visitors
 
-**Metrics:** invalid-call rate, recovered failures, extra calls spent, success.
+**Metrics:** request success under load, with vs without the router.
 
-## Phase 6: C5, quota-aware provider router (Week 11)
+## Phase F: C3, analysis-template caching (Weeks 12–14)
 
-- [ ] Track per-model RPM/TPM/RPD/TPD in Redis
-- [ ] Route Groq `gpt-oss-120b` → Groq `qwen3.8-27b` → Groq `gpt-oss-20b` → Gemini Flash (AI Studio) → GitHub Models (Groq limits are per model, so each Groq model is its own quota), failing over on 429s and timeouts, with exponential backoff
-- [ ] Load test that simulates concurrent demo visitors
+- [ ] After a correct solve, extract a template: question shape → steps / code skeleton with slots (merchant, period, card scheme, rule ID)
+- [ ] For a new question, retrieve similar templates and let the LLM fill the slots and adapt them; validate the result through C2
+- [ ] Reuse guard: fall back to full reasoning if slot-filling fails or the result is empty
+- [ ] Warm-up tasks disjoint from test tasks
+- [ ] Run **+C1+C2+C3**; add a "template reused" badge to the demo
 
-**Metrics:** request success rate under load, with vs. without the router.
+**Metrics:** LLM calls and tokens per task, latency, accuracy retained, cache hit rate.
 
-## Phase 7: C3, plan caching (Weeks 12–14)
+## Phase G: C4, multi-agent study (Weeks 15–16)
 
-- [ ] On success, extract a plan template (steps with values replaced by placeholders) and store it in Redis
-- [ ] On a new task, retrieve similar templates and have the LLM adapt them to the specifics, then execute
-- [ ] Reuse guard: if validation fails or a step errors, fall back to normal planning
-- [ ] Separate cache warm-up tasks from test tasks (no leakage)
-- [ ] Run **+C1+C2+C3**; add a "plan reused" badge to the UI
-
-**Metrics:** LLM calls/tokens per task, latency, success retained, cache hit rate.
-
-## Phase 8: C4, multi-agent study (Weeks 15–16)
-
-- [ ] Planner / executor / verifier via smolagents managed agents
-- [ ] Compare against the best single-agent config **at equal token budget**
+- [ ] Planner (reads the manual, writes the analysis plan) → analyst (writes and runs code) → reviewer (checks the answer against the manual and guidelines), via smolagents managed agents
+- [ ] Compare with the best single-agent config **at an equal token budget**; report it honestly
 - [ ] Add a single/multi toggle to the demo
-- [ ] Report the result honestly, even if it is negative
 
-## Phase 9: Full evaluation (Weeks 17–18)
+## Phase H: Full evaluation + leaderboard (Weeks 17–19)
 
-- [ ] Re-run all configs on the frozen sample
-- [ ] Final table with CIs + significance tests (McNemar for success), ablation charts, failure analysis
+- [ ] Re-run all configs on the frozen local set; final table with CIs, McNemar's test, ablations, failure analysis
+- [ ] Plan the official submissions within quota. Full 450-task runs take many days of free quota, so run them overnight across providers.
+  - Submit **Baseline** and the **best config** only.
+  - Record the scores and leaderboard rank with dates.
 - [ ] Record 10–15 showcase runs for the demo's replay mode
 
 **Exit:** every resume placeholder is filled with a measured number.
 
-## Phase 10: Polish, docs, resume (Weeks 19–20)
+## Phase I: Polish, docs, resume (Weeks 20–21)
 
-- [ ] Results dashboard page on the live site
-- [ ] README: problem, architecture, **Original vs Our Contribution**, results, local setup, attribution
-- [ ] Project report/paper, slides, 2-minute demo video
-- [ ] Resume bullets + 90-second interview pitch
-- [ ] Optional: upstream issue/PR to smolagents (e.g. a validate-and-repair hook)
+- [ ] Results dashboard page on the live site (local results + leaderboard scores)
+- [ ] "Business insight" view in the demo: answer + chart + a 2–3 sentence explanation citing the manual section used
+- [ ] README: problem, architecture, **Original vs Our Contribution**, results, attribution
+- [ ] Report, slides, a 2-minute demo video, resume bullets, a 90-second pitch
 
 ## Future scope
 
-Not scheduled; pick up when there is time after the core phases.
-
-- [ ] **CI jobs that use API keys.** Store keys as GitHub Actions repository secrets (never in the repo). Then:
-  - a live provider smoke test (`scripts/hello_groq.py`, later one per router provider), run on manual dispatch or a weekly schedule, not on every push, to save free quota
-  - a small live agent run on 1–2 BFCL tasks as an end-to-end check
-  - skip these jobs on PRs from forks, since forks can't read secrets
+- [ ] Free-form "ask your own question" mode with strict limits (no expected answer; show the code and an evidence table)
+- [ ] CI jobs that use API keys (repository secrets; manual dispatch only)
+- [ ] Text-to-SQL backend (DuckDB) as an alternative executor; compare with pandas
 
 ---
 
@@ -155,35 +139,35 @@ Not scheduled; pick up when there is time after the core phases.
 
 | Weeks | Phase | Live demo shows |
 |---|---|---|
-| 1 | Setup | — |
-| 2–3 | Understand smolagents + BFCL | — |
-| **4** | **Walking skeleton** | **Baseline agent, live** |
-| 5–6 | Baseline + eval harness | same |
+| 1–3 | A: Pivot to DABstep | Stock CodeAgent on business questions |
+| 4–6 | B: Baseline + local labeled set | same |
 | — | Exam buffer | same |
-| 7–8 | C1 Tool retrieval | tokens-saved counter |
-| 9–10 | C2 Validate & repair | repaired-call markers |
-| 11 | C5 Provider router | stays up under load |
-| 12–14 | C3 Plan caching | plan-reused badge |
-| 15–16 | C4 Multi-agent | single/multi toggle |
-| 17–18 | Full evaluation | replay mode |
-| 19–20 | Polish + docs | results dashboard |
+| 7–8 | C: C1 Context retrieval | tokens-saved counter |
+| 9–10 | D: C2 Validate & repair | repaired-code markers |
+| 11 | E: C5 Router | stays up under load |
+| 12–14 | F: C3 Template cache | template-reused badge |
+| 15–16 | G: C4 Multi-agent | single/multi toggle |
+| 17–19 | H: Evaluation + leaderboard | replay mode |
+| 20–21 | I: Polish | results dashboard, insight view |
 
 ## Risks
 
 | Risk | Mitigation |
 |---|---|
-| Daily token quota slows evaluation | Do C1 first; spread runs across models/providers; 40–60-task sample; overnight runs |
-| A free tier changes its limits | Router (C5) + replay mode; keep providers swappable via config |
-| Vercel Hobby 300 s function limit | Cap agent steps; stream progress; short tasks on fast APIs |
-| A contribution doesn't help | Report it honestly; negative results with analysis are still interview gold |
-| Busy semester | Phases after 3 are independent; C4 can be dropped without breaking the story |
+| Only 10 labeled dev tasks | Build our own ~40-task labeled set (Phase B); it doubles as domain learning |
+| Full 450-task submissions are quota-heavy | C1 first; overnight runs across Groq models + Gemini; only 2 planned submissions |
+| Leaderboard rules unknown (all tasks required? limits?) | Verify in A1 before planning Phase H |
+| LLM-written code in a public demo | Restricted executor, allow-listed imports, read-only data, hardening tests (A3), step caps |
+| Vercel bundle or cold start with pandas + 23.6 MB CSV | Measure in A4; convert to a compact format at build time if needed |
+| Hard tasks remain hard (low absolute accuracy) | Report relative gains with CIs and per-category analysis; easy-set accuracy and token savings are also results |
+| Two projects in parallel | Phases are independent after B; C4 can be dropped without breaking the story |
 
-## Resume template (fill in after Phase 9)
+## Resume template (fill in after Phase H)
 
-**Lean Agents: Token-Efficient, Reliable Tool-Using AI Agents** · [Live Demo] · [GitHub]
-*Python, smolagents, Groq, Next.js, Vercel, Redis*
+**Lean Analyst: GenAI Data-Analyst Agent for Business Analytics** · [Live Demo] · [GitHub]
+*Python, smolagents, pandas, Groq, FastAPI, Next.js, Vercel, Redis*
 
-- Extended Hugging Face smolagents with retrieval-based tool selection, cutting prompt tokens per agent step by [X]% and raising tasks completed per day on a free API quota by [Y]×.
-- Built a schema-validation and repair loop that reduced invalid tool calls by [X]% and raised BFCL multi-turn success from [A]% to [B]%.
-- Implemented plan caching and a quota-aware multi-provider LLM router, cutting LLM calls per task by [X]% at [Y]% request success under rate limits.
-- Deployed a live agent-trace demo at ₹0 (Vercel, Upstash) with sandboxed tools, per-visitor rate limits and a replay fallback.
+- Built a code-writing analyst agent on Hugging Face smolagents for Adyen's DABstep payments-analytics benchmark, scoring [X]% on the official leaderboard ([Y]% on hard tasks) at ₹0 inference cost.
+- Cut prompt tokens per step by [X]% with BM25 retrieval over the business manual and data-schema cards, raising tasks completed per day on a free API quota by [Y]×.
+- Added pre-execution code validation, runtime-error repair and guideline-driven answer formatting, reducing code errors by [X]% and raising accuracy from [A]% to [B]%.
+- Implemented analysis-template caching and a quota-aware multi-provider LLM router, cutting LLM calls per question by [X]%; deployed a live demo with sandboxed execution, rate limits and replay fallback.
